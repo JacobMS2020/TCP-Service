@@ -1,5 +1,5 @@
 ;TCP Server
-Global $Version = "0.0.0.1"
+Global $Version = "0.0.0.2"
 
 #include <File.au3>
 #include <String.au3>
@@ -17,7 +17,8 @@ Global $Version = "0.0.0.1"
 ; Vars
 						  ;|        1       |         2      |    3   |    4   |   5
 	Global $ServerDetails ;| Server Version | Client Version | LAN IP | WAN IP | PORT
-	Global $connection = -1
+	Global $connectionID[99]
+	Global $connectionCount = 0
 
 ; Colors
 	$colorREDLight=0xff9090
@@ -57,6 +58,11 @@ Global $Version = "0.0.0.1"
 	_log("IP: "&$tcpIP)
 
 	TCPStartup()
+	$Socket = TCPListen($tcpIP,$tcpPORT,99)
+	If @error <> 0 Then
+		_log("ERROR: Starting Listen!")
+		_exit()
+	EndIf
 
 
 	_log("Setup compleate ("&TimerDiff($timerStartup)&"ms)")
@@ -69,12 +75,13 @@ Global $Version = "0.0.0.1"
 	GUICreate("TCP Server (v"&$Version&")", $GUIWidth, $GUIHight, -1, -1)
 
 	GUICtrlCreateTab(0,0,$GUIWidth,$GUIHight)
-;== Details
+
+	#Region == Details
 GUICtrlCreateTabItem("Details")
 
 ;Left
 	$top=25
-	GUICtrlCreateLabel("Server Details File:",5,$top,$GUIWidth/2,20)
+	GUICtrlCreateLabel("Local Server Details File:",5,$top,$GUIWidth/2,20)
 		GUICtrlSetFont(-1,8.5,700)
 	$top+=20
 	GUICtrlCreateLabel("Server v"&$ServerDetails[1],5,$top,$GUIWidth/2,15)
@@ -89,6 +96,14 @@ GUICtrlCreateTabItem("Details")
 	$top+=20
 	$ReadServerDetailsFileTime = FileGetTime($FileServerDetails)
 	GUICtrlCreateLabel( "File Last updated: "&@CRLF&$ReadServerDetailsFileTime[0]&"/"&$ReadServerDetailsFileTime[1]&"/"&$ReadServerDetailsFileTime[2]&"  "&$ReadServerDetailsFileTime[3]&":"&$ReadServerDetailsFileTime[4],5,$top,$GUIWidth/2,30)
+
+	$top+=50
+	GUICtrlCreateLabel("Server Listning on:",5,$top,$GUIWidth/2)
+		GUICtrlSetFont(-1,8.5,700)
+	$top+=20
+	GUICtrlCreateLabel("Port: "&$tcpPORT,5,$top,$GUIWidth/2)
+	$top+=15
+	GUICtrlCreateLabel("IP: "&$tcpIP,5,$top,$GUIWidth/2)
 
 ;Bottom
 	$ButtonCheckServerDetailsFile = GUICtrlCreateButton("Check Server Details File for changes",5,$GUIHight-70,$GUIWidth-10,30)
@@ -115,7 +130,17 @@ GUICtrlCreateTabItem("Details")
 	$top+=20
 	GUICtrlCreateLabel("These Details Sould be the same as the Server Details File",$GUIWidth-($GUIWidth/2),$top,$GUIWidth/2,30)
 
-;=== Clients
+	$top+=50
+	GUICtrlCreateLabel("Server Status:",$GUIWidth-($GUIWidth/2),$top,$GUIWidth/2)
+		GUICtrlSetFont(-1,8.5,700)
+	$top+=20
+	$LableServerStatus = GUICtrlCreateLabel("Active",$GUIWidth-($GUIWidth/2),$top,$GUIWidth/2)
+		GUICtrlSetFont(-1,8.5,700)
+		GUICtrlSetColor(-1,$colorGreen)
+
+	#EndRegion
+
+	#Region === Clients
 GUICtrlCreateTabItem("Clients")
 
 	$top=25
@@ -123,7 +148,9 @@ GUICtrlCreateTabItem("Clients")
 	$top+=$GUIHight-55
 	$ButtonCommand = GUICtrlCreateButton("Command Selected",5,$top,$GUIWidth-10,25)
 
-;=== Command
+	#EndRegion
+
+	#Region === Command
 GUICtrlCreateTabItem("Command")
 
 	$top=25
@@ -131,6 +158,9 @@ GUICtrlCreateTabItem("Command")
 		GUICtrlSetFont(-1,8.5,700)
 
 	GUISetState(@SW_SHOW)
+
+	#EndRegion
+
 #EndRegion
 
 #Region ===== Main_LOOP
@@ -146,24 +176,40 @@ While 1
 		Case $ButtonCheckServerDetailsFile
 			GUICtrlSetData($ButtonCheckServerDetailsFile,"Checking...")
 			If FileRead($FileServerDetails) <> InetRead($URLServerDetails) Then
-				GUICtrlSetData($ButtonCheckServerDetailsFile,"File Different!")
+				GUICtrlSetData($ButtonCheckServerDetailsFile,"File Different! (Please replace)")
 			Else
 				GUICtrlSetData($ButtonCheckServerDetailsFile,"File is the same")
 			EndIf
 
 	EndSwitch
 
+	_Listen()
+
 WEnd
 
 #EndRegion
 
 #Region ===== FUNCTIONS
+
+; Listen
+	Func _Listen()
+		$connectionID[$connectionCount] = TCPAccept($Socket)
+		If $connectionID[$connectionCount] <> -1 Then
+			MsgBox(0,'','Client Found!')
+			$connectionCount+=1
+		EndIf
+
+	EndFunc
+
+; EXIT
 	Func _exit()
 
+		TCPShutdown()
 		Exit
 
 	EndFunc
 
+; LOG
 	Func _log($_logMSG)
 		_FileWriteLog($FileLogServer,$_logMSG)
 	EndFunc

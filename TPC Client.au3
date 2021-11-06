@@ -64,7 +64,6 @@ Global $LAN = True ; If the program running on the LAN (or WAN)
 #EndRegion
 
 #Region ===== STARTUP
-	Exit
 	_connect()
 
 #EndRegion
@@ -72,12 +71,15 @@ Global $LAN = True ; If the program running on the LAN (or WAN)
 #Region ===== Connection_LOOP
 
 	Func _connect()
-
+		_log("Looking for server")
 		Do
 			$connection=TCPConnect($tcpIP,$tcpPORT)
 			Sleep(500)
 
-		Until $connection < 0
+		Until $connection <> -1
+		_log("Server Found!")
+
+		MsgBox(0,'','Server Found!')
 
 
 	EndFunc
