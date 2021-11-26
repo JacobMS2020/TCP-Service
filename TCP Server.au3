@@ -1,5 +1,5 @@
 ;TCP Server
-Global $Version = "1.0.0"
+Global $Version = "1.1.0" ;package(server&client).features.fix
 
 #include <File.au3>
 #include <String.au3>
@@ -27,6 +27,7 @@ Global $Version = "1.0.0"
 	Global $connectionsTotal = 0
 	Global $selectedClient
 	Global $ViewItemID[99]
+	$ServerDetailsIssue=False
 ; Client
 	Global $ClientID[999][99]
 	Global $connectionsTotal=0
@@ -72,11 +73,15 @@ Global $Version = "1.0.0"
 	$Socket = TCPListen($tcpIP,$tcpPORT,99)
 	If @error <> 0 Then
 		_log("ERROR: Starting Listen!")
+		MsgBox(16,@error,"ERROR: Starting Listen!"&@CRLF&"Server Details file will be deleted!"&@CRLF&$tcpIP&@CRLF&$tcpPORT)
+		FileDelete($FileServerDetails)
 		_exit()
 	EndIf
 
-
 	_log("Setup compleate ("&TimerDiff($timerStartup)&"ms)")
+; Timers
+	$timerFunctionCall=TimerInit()
+
 #EndRegion
 
 #Region ===== GUI_MAIN
@@ -96,17 +101,24 @@ GUICtrlCreateTabItem("Details")
 		GUICtrlSetFont(-1,8.5,700)
 	$top+=20
 	GUICtrlCreateLabel("Server v"&$ServerDetails[1],5,$top,$GUIWidth/2,15)
+	If $ServerDetails[1]<>$Version Then GUICtrlSetColor(-1,$colorOrange)
 	$top+=15
 	GUICtrlCreateLabel("Client v"&$ServerDetails[2],5,$top,$GUIWidth/2,15)
 	$top+=15
 	GUICtrlCreateLabel("IP (LAN): "&$tcpIP,5,$top,$GUIWidth/2,15)
 	$top+=15
+	$tempIP=_GetIP()
 	GUICtrlCreateLabel("IP (WAN): "&$ServerDetails[4],5,$top,$GUIWidth/2,15)
+	If $tempIP<>$ServerDetails[4] Then GUICtrlSetColor(-1,$colorOrange)
 	$top+=15
 	GUICtrlCreateLabel("Port: "&$tcpPORT ,5,$top,$GUIWidth/2,15)
 	$top+=20
 	$ReadServerDetailsFileTime = FileGetTime($FileServerDetails)
 	GUICtrlCreateLabel( "File Last updated: "&@CRLF&$ReadServerDetailsFileTime[0]&"/"&$ReadServerDetailsFileTime[1]&"/"&$ReadServerDetailsFileTime[2]&"  "&$ReadServerDetailsFileTime[3]&":"&$ReadServerDetailsFileTime[4],5,$top,$GUIWidth/2,30)
+	If $ReadServerDetailsFileTime[0]&$ReadServerDetailsFileTime[1]&$ReadServerDetailsFileTime[2]<@YEAR&@MON&@MDAY-1 Then ;If Server details file is more than 1 day old then set orange
+		GUICtrlSetColor(-1,$colorOrange)
+		$ServerDetailsIssue=True
+	EndIf
 
 	$top+=50
 	GUICtrlCreateLabel("Server Listning on:",5,$top,$GUIWidth/2)
@@ -121,7 +133,6 @@ GUICtrlCreateTabItem("Details")
 			GUICtrlSetFont(-1,8.5,700)
 	$ButtonDeleteServerDetailsFile = GUICtrlCreateButton("Update Server Details File and quit server",5,$GUIHight-35,$GUIWidth-10,30)
 		GUICtrlSetFont(-1,8.5,700)
-		;GUICtrlSetColor(-1,$colorRED)
 
 ;Right
 	$top = 25
@@ -129,13 +140,17 @@ GUICtrlCreateTabItem("Details")
 		GUICtrlSetFont(-1,8.5,700)
 	$top+=20
 	GUICtrlCreateLabel("Server Version: "&$Version,$GUIWidth-($GUIWidth/2),$top,$GUIWidth/2,15)
+	If $ServerDetails[1]<>$Version Then GUICtrlSetColor(-1,$colorOrange)
 	$top+=15
 	GUICtrlCreateLabel("IP1: "&@IPAddress1,$GUIWidth-($GUIWidth/2),$top,$GUIWidth/2,15)
 	$top+=15
 	GUICtrlCreateLabel("IP2: "&@IPAddress2,$GUIWidth-($GUIWidth/2),$top,$GUIWidth/2,15)
 	$top+=15
-	;GUICtrlCreateLabel("WAN: "&_GetIP(),$GUIWidth-($GUIWidth/2),$top,$GUIWidth/2,15)
-	GUICtrlCreateLabel("WAN: ERROR (Change in code)",$GUIWidth-($GUIWidth/2),$top,$GUIWidth/2,15)
+	GUICtrlCreateLabel("WAN: "&$tempIP,$GUIWidth-($GUIWidth/2),$top,$GUIWidth/2,15)
+	If $tempIP<>$ServerDetails[4] Then
+		GUICtrlSetColor(-1,$colorOrange)
+		$ServerDetailsIssue=True
+	EndIf
 	$top+=15
 	GUICtrlCreateLabel("Port: "&$tcpPORT,$GUIWidth-($GUIWidth/2),$top,$GUIWidth/2,15)
 	$top+=20
@@ -149,15 +164,19 @@ GUICtrlCreateTabItem("Details")
 		GUICtrlSetFont(-1,8.5,700)
 		GUICtrlSetColor(-1,$colorGreen)
 
+	If $ServerDetailsIssue=True Then GUICtrlSetColor($ButtonDeleteServerDetailsFile,$colorOrange) ;Set button to Orange if issue with server details file
+
 	#EndRegion
 
 	#Region === Clients
 GUICtrlCreateTabItem("Clients")
 
 	$top=25
-	$ViewClients = GUICtrlCreateListView("ID|Socket|Name   |IP(WAN)          |IP(LAN)         ",5,$top,$GUIWidth-10,$GUIHight-60)
-	$top+=$GUIHight-55
+	$ViewClients = GUICtrlCreateListView("ID|Socket|Name   |IP(WAN)          |IP(LAN)         ",5,$top,$GUIWidth-10,$GUIHight-90)
+	$top+=$GUIHight-85
 	$ButtonSelectClient=GUICtrlCreateButton("Command Selected",5,$top,$GUIWidth-10,25)
+	$top+=30
+	$ButtonCheckClients=GUICtrlCreateButton("Check Clients",5,$top,$GUIWidth-10,25)
 
 	#EndRegion
 
@@ -190,6 +209,7 @@ GUICtrlCreateTabItem("Command")
 
 While 1
 	$GUIMSG=GUIGetMsg()
+; GUI
 	Switch $GUIMSG
 		Case -3
 			_exit()
@@ -207,23 +227,30 @@ While 1
 			If GUICtrlRead($ViewClients)<>0 Then
 				$selectedClient=$ViewItemID[GUICtrlRead($ViewClients)]
 				GUICtrlSetData($LableClient,"ID selected: "&$ClientID[$selectedClient][0]&" | Socket: "&$ClientID[$selectedClient][2])
+				_GUICtrlTab_SetCurSel($Tab,2)
 			EndIf
+		Case $ButtonCheckClients
+			_CheckClients()
 	EndSwitch
+; Keypress
 	If _IsPressed("0D") Then ;ENTER key
 		If _GUICtrlTab_GetCurSel($Tab)=2 Then ;page 3
-			MsgBox(0,"",'command would be sent')
+			If GUICtrlRead($InputCommand)<>"" Then
+				MsgBox(0,"",'command would be sent')
+			EndIf
 		EndIf
 	EndIf
-
-	_Listen()
-
+; Fuction calls
+	If TimerDiff($timerFunctionCall)>500 Then
+		$timerFunctionCall=TimerInit()
+		_Listen()
+	EndIf
 WEnd
 
 #EndRegion
 
 #Region ===== FUNCTIONS
-
-; Listen / CLIENT info
+;----- Listen / CLIENT info
 	Func _Listen()
 		$tempSocket = TCPAccept($Socket)
 		If $tempSocket <> -1 Then
@@ -240,7 +267,7 @@ WEnd
 		EndIf
 
 	EndFunc
-; LIST VIEW UPDATE
+;----- LIST VIEW UPDATE
 	Func _ViewUpdate()
 		_GUICtrlListView_DeleteAllItems($ViewClients)
 		$ViewItemsTotal=0
@@ -254,7 +281,25 @@ WEnd
 			Next
 		EndIf
 	EndFunc
-; SEND
+;----- Client Check
+	Func _CheckClients()
+		If $connectionsActive > 0 Then
+			$tempViewUpdate=False
+			For $i=1 To $connectionsTotal Step 1
+				If $ClientID[$i][1]=1 Then
+					$ii=TCPSend($ClientID[$i][2],"test")
+					If @error=10054 Then
+						$ClientID[$i][1]=0
+						$tempViewUpdate=True
+						TCPCloseSocket($ClientID[$i][2])
+						_log('Disconection detected socket: '&$ClientID[$i][2]&' Client ID: '&$ClientID[$i][0])
+					EndIf
+				EndIf
+			Next
+			If $tempViewUpdate=True Then _ViewUpdate()
+		EndIf
+	EndFunc
+;----- SEND
 	Func _Send($_sendID,$_sendMSG)
 		If $_sendID='all' Then
 			For $i=1 To $connectionsTotal Step 1
@@ -268,7 +313,7 @@ WEnd
 			_log('Message sent to ID:'&$ClientID[$i][0]&' ('&$temp&')')
 		EndIf
 	EndFunc
-; EXIT
+;----- EXIT
 	Func _exit()
 
 		If $connectionsActive > 0 Then _Send('all','offline')
@@ -277,9 +322,9 @@ WEnd
 		Exit
 
 	EndFunc
-; LOG
+;----- LOG
 	Func _log($_logMSG)
-		_FileWriteLog($FileLogServer,$_logMSG)
+		_FileWriteLog($FileLogServer,$_logMSG,1)
 	EndFunc
 #EndRegion
 

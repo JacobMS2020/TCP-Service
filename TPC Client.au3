@@ -1,5 +1,5 @@
 ;TCP Client
-Global $Version = "0.1.1"
+Global $Version = "0.1.2" ;package(server&client).features.fix
 Global $LAN = True ; If the program running on the LAN (or WAN)
 
 #include <File.au3>
@@ -27,7 +27,7 @@ Global $LAN = True ; If the program running on the LAN (or WAN)
 	Global $clientUniqueHardwareID = _WinAPI_UniqueHardwareID($UHID_BIOS)
 #EndRegion
 
-#Region ===== DOWNLOAD / INTERNET / SETUP
+#Region ===== ===== DOWNLOAD / INTERNET / SETUP / STARTUP
 ; Setup
 	If Not FileExists($DirBin) Then DirCreate($DirBin)
 ; Internet
@@ -57,26 +57,28 @@ Global $LAN = True ; If the program running on the LAN (or WAN)
 	_log("IP: "&$tcpIP)
 
 	TCPStartup()
-
-
 	_log("Setup compleate ("&TimerDiff($timerStartup)&"ms)")
-#EndRegion
-
-#Region ===== STARTUP
-	ToolTip("Client Running...",@DesktopWidth-150,1)
 	_connect()
+
 #EndRegion
 
-TCPCloseSocket($Socket)
-TCPShutdown()
-Exit
+#Region ===== ===== Main Loop
+	GUICreate("Client",150,200)
 
-#cs
-While 1
-#ce
+	GUISetState()
+	While 1
+		$GUIMSG=GUIGetMsg()
+		If $GUIMSG=-3 Then ExitLoop
+
+	WEnd
+
+	;TCPCloseSocket($Socket)
+	;TCPShutdown()
+	Exit
+#EndRegion
 
 
-#Region ===== FUNCTIONS
+#Region ===== ===== FUNCTIONS
 ;Connection Loop
 	Func _connect()
 		_log("Looking for server (loop)")
@@ -85,8 +87,6 @@ While 1
 			Sleep(500)
 		Until $Socket <> -1
 		_log("Server Found!")
-
-		MsgBox(0,'','Server Found!')
 	EndFunc
 ;Update Client
 	Func _UpdateExit()
@@ -97,7 +97,7 @@ While 1
 	EndFunc
 ;Log
 	Func _log($_logMSG)
-		_FileWriteLog($FileLogClient,$_logMSG)
+		_FileWriteLog($FileLogClient,$_logMSG,1)
 	EndFunc
 
 #EndRegion
