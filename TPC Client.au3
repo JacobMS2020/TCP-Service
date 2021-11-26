@@ -1,31 +1,30 @@
 ;TCP Client
-Global $Version = "0.0.0.1"
+Global $Version = "0.1.1"
 Global $LAN = True ; If the program running on the LAN (or WAN)
 
 #include <File.au3>
 #include <String.au3>
+#include <APIDiagConstants.au3>
+#include <WinAPIDiag.au3>
 
 ;Opt("TCPTimeout", 100)
 ;Opt("TrayIconHide", 1) ;Hide tray icon
 
 #Region ===== VARS
-
-; Files
+; Files and Progs (Programs)
 	Global $DirBin = @ScriptDir&"\Bin\"
-
 	Global $FileLogClient = $DirBin&"Client_Log.log"
 	Global $FileServerDetails = $DirBin&"ServerDetails"
-
 	Global $ProgUpdate = $DirBin&"Update Client.exe"
 ; URLS
+;	Managment link - https://drive.google.com/drive/u/0/folders/1fcgOyQqRQHs1Up3AU_aereBuKvHmtQvs
 	Global $URLServerDetails="https://drive.google.com/uc?export=download&id=15xoQUkHFMRIOh_mrG9pu0dNRK9px48GY" ;Server Details File on Google Drive
-; Vars
+; Server
 						  ;|        1       |         2      |    3   |    4   |   5
 	Global $ServerDetails ;| Server Version | Client Version | LAN IP | WAN IP | PORT
-	Global $connection = -1
-
-
-
+	Global $Socket = -1
+;Client Details
+	Global $clientUniqueHardwareID = _WinAPI_UniqueHardwareID($UHID_BIOS)
 #EndRegion
 
 #Region ===== DOWNLOAD / INTERNET / SETUP
@@ -64,38 +63,39 @@ Global $LAN = True ; If the program running on the LAN (or WAN)
 #EndRegion
 
 #Region ===== STARTUP
+	ToolTip("Client Running...",@DesktopWidth-150,1)
 	_connect()
-
 #EndRegion
 
-#Region ===== Connection_LOOP
+TCPCloseSocket($Socket)
+TCPShutdown()
+Exit
 
+#cs
+While 1
+#ce
+
+
+#Region ===== FUNCTIONS
+;Connection Loop
 	Func _connect()
-		_log("Looking for server")
+		_log("Looking for server (loop)")
 		Do
-			$connection=TCPConnect($tcpIP,$tcpPORT)
+			$Socket=TCPConnect($tcpIP,$tcpPORT)
 			Sleep(500)
-
-		Until $connection <> -1
+		Until $Socket <> -1
 		_log("Server Found!")
 
 		MsgBox(0,'','Server Found!')
-
-
 	EndFunc
-
-#EndRegion
-
-#Region ===== FUNCTIONS
+;Update Client
 	Func _UpdateExit()
-
-		TCPCloseSocket($connection)
+		TCPCloseSocket($Socket)
 		TCPShutdown()
 		ShellExecute($ProgUpdate)
 		Exit
-
 	EndFunc
-
+;Log
 	Func _log($_logMSG)
 		_FileWriteLog($FileLogClient,$_logMSG)
 	EndFunc
