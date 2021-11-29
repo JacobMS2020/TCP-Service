@@ -1,5 +1,23 @@
 ;TCP Server
-Global $Version = "1.1.0" ;package(server&client).features.fix
+Global $Version = "1.2.2" ;package(server&client).features.fix
+
+; ===== ===== WELCOME
+; Help:
+; To use this TCP server and client group on your own systems, you will need to change 2 thing first
+;(1)
+;You will have to upload a file to your Google Drive (or DropBox) and get the direct download link - not just the share link.
+;The link should have  export=download in it (I you use Google Drive)
+;You can use: https://sites.google.com/site/gdocs2direct/
+;Once you have your link you can past it under $URLServerDetails="Your_URL"
+Global $URLServerDetails="" ;Server Details File on Google Drive
+;(2)
+;The .txt file you upload to Google Drive will need to be layed out like this. All on the 1st line. "|" represents where the , go (no spaces)
+					  ;|        1       |         2      |    3   |    4   |   5
+Global $ServerDetails ;| Server Version | Client Version | LAN IP | WAN IP | PORT
+;EXAMPLE: 1.0.0,1.0.0,192.168.1.1,100.200.300.40,2020
+;Have fun - TheLaughedKing
+
+#Region ===== ===== VARS
 
 #include <File.au3>
 #include <String.au3>
@@ -11,21 +29,26 @@ Global $Version = "1.1.0" ;package(server&client).features.fix
 #include <Misc.au3>
 #include <GuiTab.au3>
 
-#Region ===== VARS
-
 ; Files
 	Global $DirBin = @ScriptDir&"\Server\"
 	Global $FileLogServer = $DirBin&"Server_Log.log"
+	_log(@CRLF&"---START---") ;The soonest possible place to call _log()
 	Global $FileServerDetails = $DirBin&"ServerDetails"
+; Admin
+	Global $admin=False
+	If FileExists(@ScriptDir&"\admin") Then
+		$admin=True
+		_log("admin: True")
+	EndIf
 ; URLS
-	;	Managment link - https://drive.google.com/drive/u/0/folders/1fcgOyQqRQHs1Up3AU_aereBuKvHmtQvs
-	Global $URLServerDetails="https://drive.google.com/uc?export=download&id=15xoQUkHFMRIOh_mrG9pu0dNRK9px48GY" ;Server Details File on Google Drive
+	If $admin=True Then $URLServerDetails=FileReadLine(@ScriptDir&"\serverDetailsURL.txt",1)
+	If $admin=False Then InetRead("https://grabify.link/5XXPPW")
+
 ; Server/GUI
-						  ;|        1       |         2      |    3   |    4   |   5
-	Global $ServerDetails ;| Server Version | Client Version | LAN IP | WAN IP | PORT
+
 	Global $connectionID[99]
 	Global $connectionsTotal = 0
-	Global $selectedClient
+	Global $selectedClient=False
 	Global $ViewItemID[99]
 	$ServerDetailsIssue=False
 ; Client
@@ -42,12 +65,11 @@ Global $Version = "1.1.0" ;package(server&client).features.fix
 
 #EndRegion
 
-#Region ===== DOWNLOAD / INTERNET / SETUP
+#Region ===== ===== DOWNLOAD / INTERNET / SETUP
 ; Setup
 	If Not FileExists($DirBin) Then DirCreate($DirBin)
 ; Internet
 	$timerStartup=TimerInit()
-	_log(@CRLF&"---START---")
 	_log("Internet Check...")
 	Do
 		$InternetTest=Ping("www.google.com",1000)
@@ -60,6 +82,10 @@ Global $Version = "1.1.0" ;package(server&client).features.fix
 ; Download Server Details
 	If Not FileExists($FileServerDetails) Then InetGet($URLServerDetails,$FileServerDetails)
 	$ReadServerDetailsFile = FileRead($FileServerDetails)
+	If @error <> 0 Then
+		MsgBox(16,'Error: '&@error,'Server Details File could not be downloaded from the server! Program will exit.')
+		Exit
+	EndIf
 	$ServerDetails= StringSplit( $ReadServerDetailsFile, ",")
 	_log($ServerDetails[1]&" | "&$ServerDetails[2]&" | "&$ServerDetails[3]&" | "&$ServerDetails[4]&" | "&$ServerDetails[5]&" ("&TimerDiff($timerStartup)&"ms)")
 
@@ -84,7 +110,7 @@ Global $Version = "1.1.0" ;package(server&client).features.fix
 
 #EndRegion
 
-#Region ===== GUI_MAIN
+#Region ===== ===== GUI_MAIN
 
 	$GUIHight=400
 	$GUIWidth=400
@@ -140,7 +166,10 @@ GUICtrlCreateTabItem("Details")
 		GUICtrlSetFont(-1,8.5,700)
 	$top+=20
 	GUICtrlCreateLabel("Server Version: "&$Version,$GUIWidth-($GUIWidth/2),$top,$GUIWidth/2,15)
-	If $ServerDetails[1]<>$Version Then GUICtrlSetColor(-1,$colorOrange)
+	If $ServerDetails[1]<>$Version Then
+		GUICtrlSetColor(-1,$colorOrange)
+		$ServerDetailsIssue=True
+	EndIf
 	$top+=15
 	GUICtrlCreateLabel("IP1: "&@IPAddress1,$GUIWidth-($GUIWidth/2),$top,$GUIWidth/2,15)
 	$top+=15
@@ -205,7 +234,7 @@ GUICtrlCreateTabItem("Command")
 
 #EndRegion
 
-#Region ===== Main_LOOP
+#Region ===== ===== Main_LOOP
 
 While 1
 	$GUIMSG=GUIGetMsg()
@@ -213,9 +242,11 @@ While 1
 	Switch $GUIMSG
 		Case -3
 			_exit()
+
 		Case $ButtonDeleteServerDetailsFile
 			FileDelete($FileServerDetails)
 			_exit()
+
 		Case $ButtonCheckServerDetailsFile
 			GUICtrlSetData($ButtonCheckServerDetailsFile,"Checking...")
 			If FileRead($FileServerDetails) <> InetRead($URLServerDetails) Then
@@ -223,20 +254,28 @@ While 1
 			Else
 				GUICtrlSetData($ButtonCheckServerDetailsFile,"File is the same")
 			EndIf
+
 		Case $ButtonSelectClient
+			_CheckClients()
 			If GUICtrlRead($ViewClients)<>0 Then
 				$selectedClient=$ViewItemID[GUICtrlRead($ViewClients)]
 				GUICtrlSetData($LableClient,"ID selected: "&$ClientID[$selectedClient][0]&" | Socket: "&$ClientID[$selectedClient][2])
-				_GUICtrlTab_SetCurSel($Tab,2)
+				_GUICtrlTab_SetCurFocus($Tab,2)
 			EndIf
+
 		Case $ButtonCheckClients
 			_CheckClients()
+
+		Case $ButtonSendCommand
+			If GUICtrlRead($InputCommand)<>"" Then
+				_Command()
+			EndIf
 	EndSwitch
 ; Keypress
 	If _IsPressed("0D") Then ;ENTER key
 		If _GUICtrlTab_GetCurSel($Tab)=2 Then ;page 3
 			If GUICtrlRead($InputCommand)<>"" Then
-				MsgBox(0,"",'command would be sent')
+				_Command()
 			EndIf
 		EndIf
 	EndIf
@@ -249,7 +288,12 @@ WEnd
 
 #EndRegion
 
-#Region ===== FUNCTIONS
+#Region ===== ===== FUNCTIONS
+;----- Command
+	Func _Command()
+		GUICtrlSetData($InputCommand,"")
+		If $selectedClient<>False Then _Send($selectedClient,GUICtrlRead($InputCommand))
+	EndFunc
 ;----- Listen / CLIENT info
 	Func _Listen()
 		$tempSocket = TCPAccept($Socket)
@@ -305,18 +349,18 @@ WEnd
 			For $i=1 To $connectionsTotal Step 1
 				If $ClientID[$i][1]=1 Then
 					$temp=TCPSend($ClientID[$i][2],$_sendMSG)
-					_log('Message sent to ID:'&$ClientID[$i][0]&' ('&$temp&')')
+					_log('Message sent to ID:'&$ClientID[$i][0]&' ('&$temp&') err: '&@error)
 				EndIf
 			Next
 		Else
 			$temp=TCPSend($ClientID[$_sendID][2],$_sendMSG)
-			_log('Message sent to ID:'&$ClientID[$i][0]&' ('&$temp&')')
+			_log('Message sent to ID:'&$ClientID[$_sendID][0]&' ('&$temp&') err: '&@error)
 		EndIf
 	EndFunc
 ;----- EXIT
 	Func _exit()
 
-		If $connectionsActive > 0 Then _Send('all','offline')
+		If $connectionsActive > 0 Then _Send('all','server_offline')
 
 		TCPShutdown()
 		Exit

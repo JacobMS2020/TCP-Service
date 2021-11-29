@@ -1,5 +1,5 @@
 ;TCP Client
-Global $Version = "0.1.2" ;package(server&client).features.fix
+Global $Version = "1.0.0" ;package(server&client).features.fix
 Global $LAN = True ; If the program running on the LAN (or WAN)
 
 #include <File.au3>
@@ -17,8 +17,7 @@ Global $LAN = True ; If the program running on the LAN (or WAN)
 	Global $FileServerDetails = $DirBin&"ServerDetails"
 	Global $ProgUpdate = $DirBin&"Update Client.exe"
 ; URLS
-;	Managment link - https://drive.google.com/drive/u/0/folders/1fcgOyQqRQHs1Up3AU_aereBuKvHmtQvs
-	Global $URLServerDetails="https://drive.google.com/uc?export=download&id=15xoQUkHFMRIOh_mrG9pu0dNRK9px48GY" ;Server Details File on Google Drive
+	Global $URLServerDetails=FileReadLine(@ScriptDir&"\serverDetailsURL.txt",1) ;Server Details File on Google Drive
 ; Server
 						  ;|        1       |         2      |    3   |    4   |   5
 	Global $ServerDetails ;| Server Version | Client Version | LAN IP | WAN IP | PORT
@@ -44,6 +43,10 @@ Global $LAN = True ; If the program running on the LAN (or WAN)
 
 ; Download Server Details
 	$ServerDetails= StringSplit( _HexToString( InetRead($URLServerDetails) ), ",")
+	If $ServerDetails[0]<2 Then
+		_log('Server Details File Download Error. URL: '&$URLServerDetails)
+		Exit
+	EndIf
 	_log($ServerDetails[1]&" | "&$ServerDetails[2]&" | "&$ServerDetails[3]&" | "&$ServerDetails[4]&" | "&$ServerDetails[5]&" ("&TimerDiff($timerStartup)&"ms)")
 
 ; Setup
@@ -67,35 +70,56 @@ Global $LAN = True ; If the program running on the LAN (or WAN)
 
 	GUISetState()
 	While 1
+
 		$GUIMSG=GUIGetMsg()
 		If $GUIMSG=-3 Then ExitLoop
 
+		_Recive()
+
+		Sleep(50)
 	WEnd
 
-	;TCPCloseSocket($Socket)
-	;TCPShutdown()
+	TCPCloseSocket($Socket)
+	TCPShutdown()
 	Exit
 #EndRegion
 
-
 #Region ===== ===== FUNCTIONS
-;Connection Loop
+;----- Commands
+	Func _commands($_command)
+		Switch $_command
+			Case "server_offline"
+				_log('Server has gone offline, going to _connect after 10000ms')
+				MsgBox(0,'','Server has gone offline, going to _connect after 10000ms')
+				Sleep(10000)
+				_connect()
+				Return
+		EndSwitch
+	EndFunc
+;----- Recive
+	Func _Recive()
+		$_recive=TCPRecv($Socket,99999)
+		If $_recive<>"" And $_recive<>"test" Then
+			_commands($_recive)
+		EndIf
+	EndFunc
+;----- Connect - Look for server Loop
 	Func _connect()
 		_log("Looking for server (loop)")
 		Do
 			$Socket=TCPConnect($tcpIP,$tcpPORT)
-			Sleep(500)
+			Sleep(5000)
 		Until $Socket <> -1
 		_log("Server Found!")
 	EndFunc
-;Update Client
+;----- Update Client
 	Func _UpdateExit()
 		TCPCloseSocket($Socket)
 		TCPShutdown()
 		ShellExecute($ProgUpdate)
 		Exit
 	EndFunc
-;Log
+;----- Log
 	Func _log($_logMSG)
 		_FileWriteLog($FileLogClient,$_logMSG,1)
 	EndFunc
