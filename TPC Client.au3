@@ -1,24 +1,28 @@
+#Region ;**** Directives created by AutoIt3Wrapper_GUI ****
+#AutoIt3Wrapper_Icon=cloud-computing.ico
+#EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
 ;TCP Client
-Global $Version = "2.0.0" ;package(server&client).features.fix
+Global $Version = "2.0.2" ;package(server&client).features.fix
 Global $LAN = True ; If the program running on the LAN (or WAN)
 
-#include <File.au3>
-#include <String.au3>
-#include <APIDiagConstants.au3>
-#include <WinAPIDiag.au3>
-#include <Inet.au3>
+
+
+#Region ===== VARS
+		#include <File.au3>
+	#include <String.au3>
+	#include <APIDiagConstants.au3>
+	#include <WinAPIDiag.au3>
+	#include <Inet.au3>
 
 ;Opt("TCPTimeout", 100)
 ;Opt("TrayIconHide", 1) ;Hide tray icon
-
-#Region ===== VARS
 ; Files and Progs (Programs)
 	Global $DirBin = @ScriptDir&"\Bin\"
 	Global $FileLogClient = $DirBin&"Client_Log.log"
 	Global $FileServerDetails = $DirBin&"ServerDetails"
-	Global $ProgUpdate = $DirBin&"Update Client.exe"
+	Global $ProgUpdate = @ScriptDir&"\Update Client.exe"
 ; URLS
-	Global $URLServerDetails=FileReadLine(@ScriptDir&"\serverDetailsURL.txt",1) ;Server Details File on Google Drive
+	Global $URLServerDetails=FileReadLine(@ScriptDir&"\URLs.txt",1) ;Server Details File on Google Drive
 ; Server
 						  ;|        1       |         2      |    3   |    4   |   5
 	Global $ServerDetails ;| Server Version | Client Version | LAN IP | WAN IP | PORT
@@ -116,7 +120,14 @@ EndFunc
 				_log('Command: test recived')
 
 			Case "update"
-				If FileExists($ProgUpdate) Then _UpdateExit()
+				_log('update command recived...')
+				If FileExists($ProgUpdate) Then
+					_Send('Updateing...')
+					_UpdateExit()
+				Else
+					_log('Error: Update Program nor found.')
+					_Send('Error, update program missing!')
+				EndIf
 
 			Case "ask"
 				_log('Command: ask')
