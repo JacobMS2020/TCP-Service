@@ -1,5 +1,5 @@
 ;TCP Server
-Global $Version = "1.2.2" ;package(server&client).features.fix
+Global $Version = "2.0.0" ;package(server&client).features.fix
 
 ; ===== ===== WELCOME
 ; Help:
@@ -48,7 +48,7 @@ Global $ServerDetails ;| Server Version | Client Version | LAN IP | WAN IP | POR
 
 	Global $connectionID[99]
 	Global $connectionsTotal = 0
-	Global $selectedClient=False
+	Global $selectedClient=-1
 	Global $ViewItemID[99]
 	$ServerDetailsIssue=False
 ; Client
@@ -260,6 +260,7 @@ While 1
 			If GUICtrlRead($ViewClients)<>0 Then
 				$selectedClient=$ViewItemID[GUICtrlRead($ViewClients)]
 				GUICtrlSetData($LableClient,"ID selected: "&$ClientID[$selectedClient][0]&" | Socket: "&$ClientID[$selectedClient][2])
+				GUICtrlSetData($EditClientLastMSG,$ClientID[$selectedClient][5])
 				_GUICtrlTab_SetCurFocus($Tab,2)
 			EndIf
 
@@ -291,22 +292,36 @@ WEnd
 #Region ===== ===== FUNCTIONS
 ;----- Command
 	Func _Command()
+		$InputRead=GUICtrlRead($InputCommand)
+		If $selectedClient<>-1 Then _Send($selectedClient,$InputRead)
+		$tempSplit=StringSplit($InputRead,"|")
+		If $tempSplit[1]="ask" Then
+			$tempRecive=TCPRecv($ClientID[$selectedClient][2],99999)
+			$error=@error
+			$ClientID[$selectedClient][5]=$tempRecive
+			_log('Reciving from ID: '&$ClientID[$selectedClient][0]&'('&$tempRecive&')'&$error)
+			GUICtrlSetData($EditClientLastMSG,$ClientID[$selectedClient][5])
+		EndIf
 		GUICtrlSetData($InputCommand,"")
-		If $selectedClient<>False Then _Send($selectedClient,GUICtrlRead($InputCommand))
 	EndFunc
 ;----- Listen / CLIENT info
 	Func _Listen()
 		$tempSocket = TCPAccept($Socket)
 		If $tempSocket <> -1 Then
+			Sleep(10)
+			$tempRecive=TCPRecv($tempSocket,99999)
+			_log('temp Recive: '&$tempRecive)
 			$connectionsTotal+=1
 			$connectionsActive+=1
-			; |     0     |        1      |       2		  |     3     |     4    |
-			; | ID number | Is Active 0-1 | Socket number | Lest seen | Lest MSG |
+			; |     0     |        1      |       2		  |     3     |        4        |    5    |
+			; | ID number | Is Active 0-1 | Socket number | Lest seen | Client Details | Lest MSG |
 			$ClientID[$connectionsTotal][0]=$connectionsTotal
 			$ClientID[$connectionsTotal][1]=1 ;Active
 			$ClientID[$connectionsTotal][2]=$tempSocket
 			$ClientID[$connectionsTotal][3]=TimerInit()
-			;$ClientID[$connectionsTotal][4]=$tempRecive
+			$ClientID[$connectionsTotal][4]=$tempRecive
+			$ClientID[$connectionsTotal][5]=$tempRecive
+			_log('New connection socket: '&$tempSocket&' Client ID: '&$connectionsTotal)
 			_ViewUpdate()
 		EndIf
 
@@ -332,7 +347,9 @@ WEnd
 			For $i=1 To $connectionsTotal Step 1
 				If $ClientID[$i][1]=1 Then
 					$ii=TCPSend($ClientID[$i][2],"test")
-					If @error=10054 Then
+					$error=@error
+					_log('Message sent to ID:'&$ClientID[$i][0]&' ('&$ii&') err: '&$error)
+					If $error=10054 Then
 						$ClientID[$i][1]=0
 						$tempViewUpdate=True
 						TCPCloseSocket($ClientID[$i][2])
@@ -345,6 +362,7 @@ WEnd
 	EndFunc
 ;----- SEND
 	Func _Send($_sendID,$_sendMSG)
+		_log('Sending...')
 		If $_sendID='all' Then
 			For $i=1 To $connectionsTotal Step 1
 				If $ClientID[$i][1]=1 Then

