@@ -2,10 +2,8 @@
 #AutoIt3Wrapper_Icon=cloud-computing.ico
 #EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
 ;TCP Client
-Global $Version = "2.0.2" ;package(server&client).features.fix
+Global $Version = "2.1.1" ;package(server&client).features.fix
 Global $LAN = True ; If the program running on the LAN (or WAN)
-
-
 
 #Region ===== VARS
 		#include <File.au3>
@@ -37,7 +35,7 @@ Global $LAN = True ; If the program running on the LAN (or WAN)
 ; Client Details
 	Global $clientUniqueHardwareID = _WinAPI_UniqueHardwareID($UHID_BIOS)
 
-	Global $clientInfo=@ComputerName&"|"&@UserName&"|"&_GetIP()&"|"&@IPAddress1&"-"&@IPAddress2&"|"&$clientUniqueHardwareID
+	Global $clientInfo=$Version&"|"&@ComputerName&"|"&@UserName&"|"&_GetIP()&"|"&@IPAddress1&"|"&@IPAddress2&"|"&$clientUniqueHardwareID
 #EndRegion
 
 #Region ===== ===== DOWNLOAD / INTERNET / SETUP / STARTUP
@@ -94,7 +92,10 @@ EndFunc
 #Region ===== ===== Main Loop
 	While 1
 		_Recive()
-		If TimerDiff($timerLastMSG)>300000 Then _connect() ; Reconnect to server after 5 min
+		If TimerDiff($timerLastMSG)>300000 Then  ; Reconnect to server after 5 min
+			_log('Warning: No message recived from the server for 5min, calling _connect() for a reconnection.')
+			_connect()
+		EndIf
 		Sleep(10)
 
 
@@ -111,16 +112,19 @@ EndFunc
 				_log('Server has gone offline, going to _connect after 5000ms')
 				Sleep(5000)
 				_connect()
+				Return
 
 			Case "msg"
-				_log('Command: MSG')
+				_log('Command: MSG...')
 				If $_command[0]>1 Then MsgBox(0,"Server Msg",$_command[2],5) ;<----- <----- <----- <----- Change from a msgbox to a gui
+				Return
 
 			Case "test"
 				_log('Command: test recived')
+				Return
 
 			Case "update"
-				_log('update command recived...')
+				_log('Command: update...')
 				If FileExists($ProgUpdate) Then
 					_Send('Updateing...')
 					_UpdateExit()
@@ -128,6 +132,7 @@ EndFunc
 					_log('Error: Update Program nor found.')
 					_Send('Error, update program missing!')
 				EndIf
+				Return
 
 			Case "ask"
 				_log('Command: ask')
@@ -147,8 +152,20 @@ EndFunc
 
 					EndIf
 				EndIf
+				Return
+
+			Case "throughput"
+				_log('Command: throughput...')
+				If $_command[0]>2 Then
+					For $i=1 To $_command[2]
+						_Send($i&" throughput")
+						Sleep($_command[3])
+					Next
+					_log('_throughput finished')
+				EndIf
 
 		EndSwitch
+		_log('ERROR: end of command function (no command found).')
 	EndFunc
 ;----- Send
 	Func _Send($_sendMSG)
